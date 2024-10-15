@@ -1,0 +1,42 @@
+LIBNAME INPUT 'H:\Projekt\Familiarity of mono-MTX\Data Extraction';
+LIBNAME SRQ 'K:\Reuma\RASPA 2021\01. Data Warehouse\01. Processed Data\01. SRQ';
+
+PROC SQL;
+	CREATE TABLE NOT_PERSISTENT_1YR AS
+	SELECT DISTINCT pid
+	FROM INPUT.COHORT
+	WHERE p1yr = 0
+;
+quit;
+
+PROC SQL;
+	CREATE TABLE REASON_FOR_STOPPING_1YR AS
+	SELECT a.*, b.preparat_kod, b.orsak
+	FROM NOT_PERSISTENT_1YR AS a
+	LEFT JOIN SRQ.SRQ_TERAPI AS b
+	ON a.pid = b.pid
+	WHERE preparat_kod = "MTX"
+;
+quit;
+
+PROC FREQ DATA = REASON_FOR_STOPPING_1YR; TABLE orsak; run;
+
+PROC SQL;
+	CREATE TABLE NOT_PERSISTENT_3YR AS
+	SELECT DISTINCT pid
+	FROM INPUT.COHORT
+	WHERE persist_3yr = 0
+;
+quit;
+
+PROC SQL;
+	CREATE TABLE REASON_FOR_STOPPING_3YR AS
+	SELECT a.*, b.preparat_kod, b.orsak
+	FROM NOT_PERSISTENT_3YR AS a
+	LEFT JOIN SRQ.SRQ_TERAPI AS b
+	ON a.pid = b.pid
+	WHERE preparat_kod = "MTX"
+;
+quit;
+
+PROC FREQ DATA = REASON_FOR_STOPPING_3YR; TABLE orsak; run;

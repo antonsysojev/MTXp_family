@@ -1,0 +1,218 @@
+---
+title: "Familiality of MTX persistence - post-hoc analysis"
+date: "December 2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r, echo = FALSE}
+### NOTE: File paths are not very stable and it is likely that files have been moved since last usage...
+```
+
+### INTRODUCTION
+
+In this document I extend our primary results from the study of the familiality of MTX persistence.
+I do this through a post-hoc analysis assessing how socioeconomy and geography interplays with persistence.
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(dplyr)
+library(haven)
+library(ggplot2)
+```
+
+```{r, echo = FALSE}
+df_edu <- read_sas("H:/Projekt/Till_Anton_socio_plus_acpa/cohort.sas7bdat")
+df_edu <- df_edu %>%
+  select(pid, EDU, p1yr, p3yr, p1yr_rel, p3yr_rel) %>%    #Extract only relevant columns
+  distinct() %>%    #Remove any duplicated line
+  mutate(EDU = ifelse(EDU %in% c("0", "1", "2"), "<9", EDU)) %>%
+  mutate(EDU = ifelse(EDU == "3", "9-12", EDU)) %>%
+  mutate(EDU = ifelse(EDU %in% c("4", "5", "6"), ">12", EDU)) %>%
+  mutate(EDU = ifelse(EDU == "<9", 0, ifelse(EDU == "9-12", 1, 2)))
+
+df_geo <- read_sas("H:/Projekt/Familiarity of mono-MTX/Data Extraction/Misc/clin_reg.sas7bdat")
+```
+
+### SOCIOECONOMY
+
+As a proxy for socioeconomy, I use *educational attainment*, here classified as a categorical variable with three levels, each based on years of education: $< 9$; $9-12$; $>12$.
+Data on educational attainment was obtained via the LISA register.
+
+When observing the proportion of persistent patients across attained educational level, a clear trend is noticed where the proportion persistent patients decreases as educational level increases (Figure 1).
+A similar relationship is observable for persistence at three years (Appendix, Figure A1).
+
+```{r, echo = FALSE, message = FALSE}
+df_edu %>%
+  group_by(EDU, p1yr) %>% summarise(Np1yr = n()) %>%
+  left_join(df_edu %>% group_by(EDU) %>% summarise(N_tot = n()), by = "EDU") %>%
+  mutate(FREQ = Np1yr / N_tot) %>%
+  ggplot(aes(x = factor(EDU), y = FREQ, fill = factor(p1yr))) + 
+  geom_col() +
+  geom_hline(yintercept = 0.66, alpha = 0.5, linetype = "dashed", col = "Grey 3") + 
+  xlab("Educational level") + ylab("Proportion") + 
+#  ggtitle("Proportion persistent patients across attained \neducational level; \nDashed line represents population #average") +
+  scale_x_discrete(labels = c("<9", "9-12", ">12")) +
+  scale_fill_discrete(labels = c("Non-persistent", "Persistent"),
+                      name = "Persistence at \none year") +
+  theme(legend.position = "none")
+```
+
+However, what is important for us here, is that educational attainment (socioeconomy) is not a confounder.
+We can assess this by inspecting how it affects the proportion of concordant (i.e., pairs where *both* the patient and their relative had the same persistence status) and discordant pairs.
+
+A similar relationship is discernible when looking at the pairwise concordance of persistence status (as opposed to persistence status of the index patients) (Figure 2).
+However, the deviation from the population average is less dramatic, and the effect is seemingly attenuated.
+A similar, yet further attenuated effect, is observable for persistence at three years (Appendix, Figure A2).
+In sum, I find that these results indicate two things.
+Firstly, socioeconomy *has* an association with persistence status, in the sense that eductional attainment is negatively correlated with persistence.
+Secondly, this effect remains when looking at the pairwise concordance of persistence status though it is increasingly attenuated with time, making it unlikely to be driving our results.
+
+```{r, echo = FALSE, message = FALSE}
+df_edu %>%
+  mutate(concordant_p1yr = ifelse(p1yr == p1yr_rel, 1, 0)) %>%
+  group_by(EDU, concordant_p1yr) %>% summarise(Np1yr = n()) %>%
+  left_join(df_edu %>% group_by(EDU) %>% summarise(N_tot = n()), by = "EDU") %>%
+  mutate(FREQ = Np1yr / N_tot) %>%
+  ggplot(aes(x = factor(EDU), y = FREQ, fill = factor(concordant_p1yr))) +
+  geom_col() +
+  geom_hline(yintercept = 0.570, alpha = 0.5, linetype = "dashed", col = "Grey 3") +
+  xlab("Educational level") + ylab("Proportion") +
+#  ggtitle("Proportion pairs concordant for persistence status \nacross educational level; \nDashed line represent #population average") +
+  scale_x_discrete(labels = c("<9", "9-12", ">12")) +
+  scale_fill_discrete(labels = c("Discordant", "Concordant"),
+                      name = "Persistence status at \none year") +
+  theme(legend.position = "none")
+```
+
+### GEOGRAPHY
+
+During my Tuesday morning presentation (16/11), a good point was raised suggesting that geography may influence persistence and thus our results.
+It is possible that certain clinics are more (or less) prone to introduce non-MTX DMARDs or to stop treatment with MTX entirely (which would lead to a patient being considered non-persistent) than other clinics are, thus introducing a geographical bias where such clinics have more persistent (or non-persistent) cases than others.
+
+Indeed, the proportion of persistent individuals varies greatly from clinic to clinic (Figure 3a).
+However, the more extreme clinics that deviate from the population average are predominantly clinics with few patients, such observations possibly being due to pure chance.
+In fact, when removing all clinics with less than five patients in total, results are far more stable (Figure 3b).
+Results are similar for persistence at three years (Appendix, Figure 4).
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+df_geo %>%
+  group_by(tillhor, persist_1yr) %>% summarise(Np1yr = n()) %>%
+  left_join(df_geo %>% group_by(tillhor) %>% summarise(N_tot = n()), by = "tillhor") %>%
+  mutate(FREQ = Np1yr / N_tot) %>%
+  ggplot(aes(x = factor(tillhor), y = FREQ, fill = factor(persist_1yr))) + 
+  geom_col() +
+  geom_hline(yintercept = 0.66, alpha = 0.5, linetype = "dashed", col = "Grey 3") +
+  coord_flip() + xlab("") + ylab("Proportion, scaled to clinic size") +
+#  ggtitle("Proportion persistent patients per clinic \nDashed line represents the general proportion") +
+  scale_fill_discrete(labels = c("Non-persistent", "Persistent"), 
+                      name = "Peristence \nat one year") +
+  theme(legend.position = "none")
+```
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+df_geo %>%
+  group_by(tillhor, persist_1yr) %>% summarise(Np1yr = n()) %>%
+  left_join(df_geo %>% group_by(tillhor) %>% summarise(N_tot = n()), by = "tillhor") %>%
+  filter(N_tot > 5) %>%    #Filter based on cutoff
+  mutate(FREQ = Np1yr / N_tot) %>%
+  ggplot(aes(x = factor(tillhor), y = FREQ, fill = factor(persist_1yr))) + 
+  geom_col() +
+  geom_hline(yintercept = 0.66, alpha = 0.5, linetype = "dashed", col = "Grey 3") +
+  coord_flip() + xlab("") + ylab("Proportion, scaled to clinic size") +
+#  ggtitle("Proportion persistent patients per clinic \nDashed line represents the general proportion") +
+  scale_fill_discrete(labels = c("Non-persistent", "Persistent"), 
+                      name = "Peristence \nat one year") +
+  theme(legend.position = "none")
+```
+
+This could affect our results if concordant pairs (i.e., pairs where *both* the patient and their relative had the same persistence status) were more often visiting the same clinic.
+However, when comparing the proportion of pairs concordant for geography, both marginal as well as stratified on concordance for persistence status, results are near-identical (Table 1).
+In sum, I find that these results indicate that it is unlikely that geography has a relevant effect on our results.
+
+```{r, echo = FALSE, results = FALSE}
+df_geo %>% filter(persist_1yr == rel_persist_1yr) %>% nrow()    #Number of concordant pairs 1 year
+df_geo %>% filter(persist_3yr == rel_persist_3yr) %>% nrow()    #Number of concordant pairs 3 years
+
+df_geo %>% filter(persist_1yr == rel_persist_1yr) %>%
+  filter(tillhor == tillhor_rel) %>% nrow()    #Number of concordant pairs concordant for clinic 1 year
+df_geo %>% filter(persist_3yr == rel_persist_3yr) %>%
+  filter(tillhor == tillhor_rel) %>% nrow()    #Number of concordant pairs concordant for clinic 3 years
+
+df_geo %>% filter(persist_1yr == rel_persist_1yr) %>%
+  filter(lan == lan_rel) %>% nrow()    #Number of concordant pairs concordant for lan 1 year
+df_geo %>% filter(persist_3yr == rel_persist_3yr) %>%
+  filter(lan == lan_rel) %>% nrow()    #Number of concordant pairs concordant for lan 3 years
+
+df_geo %>% filter(persist_1yr == rel_persist_1yr) %>%
+  filter(region == region_rel) %>% nrow()    #Number of concordant pairs concordant for region 1 year
+df_geo %>% filter(persist_3yr == rel_persist_3yr) %>%
+  filter(region == region_rel) %>% nrow()    #Number of concordant pairs concordant for region 1 year
+```
+
+### APPENDIX
+
+```{r, echo = FALSE, message = FALSE}
+df_edu %>%
+  group_by(EDU, p3yr) %>% summarise(Np3yr = n()) %>%
+  left_join(df_edu %>% group_by(EDU) %>% summarise(N_tot = n()), by = "EDU") %>%
+  mutate(FREQ = Np3yr / N_tot) %>%
+  ggplot(aes(x = factor(EDU), y = FREQ, fill = factor(p3yr))) + 
+  geom_col() +
+  geom_hline(yintercept = 0.50, alpha = 0.5, linetype = "dashed", col = "Grey 3") + 
+  xlab("Educational level") + ylab("Proportion") + 
+#  ggtitle("Proportion persistent patients across attained educational level \nDashed line represents population #average") +
+  scale_x_discrete(labels = c("<9", "9-12", ">12")) +
+  scale_fill_discrete(labels = c("Non-persistent", "Persistent"),
+                      name = "Persistence at \nthree years") +
+  theme(legend.position = "none")
+```
+
+```{r, echo = FALSE, message = FALSE}
+df_edu %>%
+  mutate(concordant_p3yr = ifelse(p3yr == p3yr_rel, 1, 0)) %>%
+  group_by(EDU, concordant_p3yr) %>% summarise(Np3yr = n()) %>%
+  left_join(df_edu %>% group_by(EDU) %>% summarise(N_tot = n()), by = "EDU") %>%
+  mutate(FREQ = Np3yr / N_tot) %>%
+  ggplot(aes(x = factor(EDU), y = FREQ, fill = factor(concordant_p3yr))) +
+  geom_col() +
+  geom_hline(yintercept = 0.595, alpha = 0.5, linetype = "dashed", col = "Grey 3") +
+  xlab("Educational level") + ylab("Proportion") +
+#  ggtitle("Proportion pairs concordant for persistence status across educational level \nDashed line represent #population average") +
+  scale_x_discrete(labels = c("<9", "9-12", ">12")) +
+  scale_fill_discrete(labels = c("Discordant", "Concordant"),
+                      name = "Persistence status at \nthree years") +
+  theme(legend.position = "none")
+```
+
+```{r, echo = FALSE, message = FALSE}
+df_geo %>%
+  group_by(tillhor, persist_3yr) %>% summarise(Np3yr = n()) %>%
+  left_join(df_geo %>% group_by(tillhor) %>% summarise(N_tot = n()), by = "tillhor") %>%
+  mutate(FREQ = Np3yr / N_tot) %>%
+  ggplot(aes(x = factor(tillhor), y = FREQ, fill = factor(persist_3yr))) + 
+  geom_col() +
+  geom_hline(yintercept = 0.50, alpha = 0.5, linetype = "dashed", col = "Grey 3") +
+  coord_flip() + xlab("") + ylab("Proportion, scaled to clinic size") +
+#  ggtitle("Proportion persistent patients per clinic \nDashed line represents the general proportion") +
+  scale_fill_discrete(labels = c("Non-persistent", "Persistent"), 
+                      name = "Peristence \nat three years") +
+  theme(legend.position = "none")
+```
+
+```{r, echo = FALSE, message = FALSE}
+df_geo %>%
+  group_by(tillhor, persist_3yr) %>% summarise(Np3yr = n()) %>%
+  left_join(df_geo %>% group_by(tillhor) %>% summarise(N_tot = n()), by = "tillhor") %>%
+  filter(N_tot > 5) %>%    #Filter based on cutoff
+  mutate(FREQ = Np3yr / N_tot) %>%
+  ggplot(aes(x = factor(tillhor), y = FREQ, fill = factor(persist_3yr))) + 
+  geom_col() +
+  geom_hline(yintercept = 0.50, alpha = 0.5, linetype = "dashed", col = "Grey 3") +
+  coord_flip() + xlab("") + ylab("Proportion, scaled to clinic size") +
+#  ggtitle("Proportion persistent patients per clinic \nDashed line represents the general proportion") +
+  scale_fill_discrete(labels = c("Non-persistent", "Persistent"), 
+                      name = "Peristence \nat three years") +
+  theme(legend.position = "none")
+```
+
